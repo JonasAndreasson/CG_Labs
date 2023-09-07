@@ -8,7 +8,7 @@
 #include "core/ShaderProgramManager.hpp"
 
 #include <imgui.h>
-
+#include <stack>
 #include <clocale>
 #include <cstdlib>
 
@@ -109,7 +109,7 @@ int main()
 	SpinConfiguration const venus_spin{ glm::radians(-2.6f), -glm::two_pi<float>() / 600.0f };
 	OrbitConfiguration const venus_orbit{ 3.0f, glm::radians(-3.9f), glm::two_pi<float>() / 12.0f };
 
-	glm::vec3 const earth_scale{ 0.05f };
+	glm::vec3 const earth_scale{ 0.5f };
 	SpinConfiguration const earth_spin{ glm::radians(-23.0f), glm::two_pi<float>() / 3.0f };
 	OrbitConfiguration const earth_orbit{ 4.0f, glm::radians(-7.2f), glm::two_pi<float>() / 20.0f };
 
@@ -158,16 +158,66 @@ int main()
 	//
 	// Set up the celestial bodies.
 	//
-	CelestialBody moon(sphere, &celestial_body_shader, moon_texture);
-	moon.set_scale(glm::vec3(0.3f));
-	moon.set_spin(moon_spin);
-	moon.set_orbit({1.5f, glm::radians(-66.0f), glm::two_pi<float>() / 1.3f});
+	CelestialBody sun(sphere, &celestial_body_shader, sun_texture);
+	sun.set_scale(sun_scale);
+	sun.set_spin(sun_spin);
+
+	CelestialBody mercury(sphere, &celestial_body_shader, mercury_texture);
+	mercury.set_scale(mercury_scale);
+	mercury.set_spin(mercury_spin);
+	mercury.set_orbit(mercury_orbit);
+	sun.add_child(&mercury);
+
+	CelestialBody venus(sphere, &celestial_body_shader, venus_texture);
+	venus.set_scale(venus_scale);
+	venus.set_spin(venus_spin);
+	venus.set_orbit(venus_orbit);
+	sun.add_child(&venus);
 
 	CelestialBody earth(sphere, &celestial_body_shader, earth_texture);
+	earth.set_scale(earth_scale);
 	earth.set_spin(earth_spin);
-	earth.set_orbit({-2.5f, glm::radians(45.0f), glm::two_pi<float>() / 10.0f});
+	earth.set_orbit(earth_orbit);
+	sun.add_child(&earth);
+
+	CelestialBody moon(sphere, &celestial_body_shader, moon_texture);
+	moon.set_scale(moon_scale);
+	moon.set_spin(moon_spin);
+	moon.set_orbit(moon_orbit);
 	earth.add_child(&moon);
 
+	CelestialBody mars(sphere, &celestial_body_shader, mars_texture);
+	mars.set_scale(mars_scale);
+	mars.set_spin(mars_spin);
+	mars.set_orbit(mars_orbit);
+	sun.add_child(&mars);
+
+	CelestialBody jupiter(sphere, &celestial_body_shader, jupiter_texture);
+	jupiter.set_scale(jupiter_scale);
+	jupiter.set_spin(jupiter_spin);
+	jupiter.set_orbit(jupiter_orbit);
+	sun.add_child(&jupiter);
+
+	CelestialBody saturn(sphere, &celestial_body_shader, saturn_texture);
+	saturn.set_scale(saturn_scale);
+	saturn.set_spin(saturn_spin);
+	saturn.set_orbit(saturn_orbit);
+	saturn.set_ring(saturn_ring_shape,&celestial_ring_shader, saturn_ring_texture, saturn_ring_scale);
+	sun.add_child(&saturn);
+
+	CelestialBody uranus(sphere, &celestial_body_shader, uranus_texture);
+	uranus.set_scale(uranus_scale);
+	uranus.set_spin(uranus_spin);
+	uranus.set_orbit(uranus_orbit);
+	sun.add_child(&uranus);
+
+	CelestialBody neptune(sphere, &celestial_body_shader, neptune_texture);
+	neptune.set_scale(neptune_scale);
+	neptune.set_spin(neptune_spin);
+	neptune.set_orbit(neptune_orbit);
+	sun.add_child(&neptune);
+
+	
 
 	//
 	// Define the colour and depth used for clearing.
@@ -249,8 +299,25 @@ int main()
 		// TODO: Replace this explicit rendering of the Earth and Moon
 		// with a traversal of the scene graph and rendering of all its
 		// nodes.
-		earth.render(animation_delta_time_us, camera.GetWorldToClipMatrix(), glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)), show_basis);
-		//moon.render(animation_delta_time_us, camera.GetWorldToClipMatrix(), glm::mat4(1.0f), show_basis);
+		std::stack<CelestialBodyRef> parent_stack;
+		CelestialBodyRef root_node;
+		root_node.body = &sun;
+		root_node.parent_transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+		parent_stack.push(root_node);
+		CelestialBodyRef current_node;
+		while (!parent_stack.empty()) {
+			std::stack<CelestialBodyRef> child_stack;
+			current_node = parent_stack.top();
+			parent_stack.pop();
+			glm::mat4 parent_transform = current_node.body->render(animation_delta_time_us, camera.GetWorldToClipMatrix(),current_node.parent_transform, show_basis);
+			for (CelestialBody* i : current_node.body->get_children()) {
+				CelestialBodyRef child_ref;
+				child_ref.body = i;
+				child_ref.parent_transform = parent_transform;
+				parent_stack.push(child_ref);
+			}
+		}
+
 
 
 		//
@@ -265,7 +332,7 @@ int main()
 			ImGui::Checkbox("Show basis", &show_basis);
 		}
 		ImGui::End();
-
+		
 
 		//
 		// Display Dear ImGui windows
@@ -274,7 +341,8 @@ int main()
 			Log::View::Render();
 		window_manager.RenderImGuiFrame(show_gui);
 
-
+		camera.mWorld.SetTranslate(earth.get_pos()-glm::vec3(0.0f,-2.0f,2.0f));
+		camera.mWorld.LookAt(earth.get_pos());
 		//
 		// Queue the computed frame for display on screen
 		//

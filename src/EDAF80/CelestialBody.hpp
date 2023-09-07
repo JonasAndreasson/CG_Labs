@@ -2,7 +2,6 @@
 
 #include "core/helpers.hpp"
 #include "core/node.hpp"
-
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
@@ -79,6 +78,8 @@ public:
 	              GLuint diffuse_texture_id,
 	              glm::vec2 const& scale = glm::vec2(1.0f));
 
+	glm::vec3 get_pos();
+
 private:
 	struct {
 		Node node;
@@ -103,4 +104,6 @@ private:
 	} _ring;
 
 	std::vector<CelestialBody*> _children;
+	float _locking_axial_tilt = 0.0f;
+	glm::mat4 transformed;
 };
