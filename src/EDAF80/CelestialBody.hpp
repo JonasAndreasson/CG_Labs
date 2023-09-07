@@ -79,6 +79,7 @@ public:
 	              glm::vec2 const& scale = glm::vec2(1.0f));
 
 	glm::vec3 get_pos();
+	glm::vec3 follow_vector();
 
 private:
 	struct {
@@ -106,4 +107,11 @@ private:
 	std::vector<CelestialBody*> _children;
 	float _locking_axial_tilt = 0.0f;
 	glm::mat4 transformed;
+	glm::mat4 S;
+	glm::mat4 R_1s;
+	glm::mat4 R_2s;
+	glm::mat4 T_o;
+	glm::mat4 R_1o;
+	glm::mat4 R_2o;
+	glm::mat4 world;
 };

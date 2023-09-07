@@ -30,14 +30,13 @@ glm::mat4 CelestialBody::render(std::chrono::microseconds elapsed_time,
 	_body.spin.rotation_angle += _body.spin.speed*elapsed_time_s;
 	_body.orbit.rotation_angle += _body.orbit.speed*elapsed_time_s;
 	_locking_axial_tilt = -_body.spin.axial_tilt*std::cos(_body.orbit.rotation_angle); //This will counteract the reflect, by reflecting the axial tilt based on the position in the orbit.
-	glm::mat4 S = glm::scale(glm::mat4(1.0f), _body.scale); //2nd arg is the scale.
-	glm::mat4 R_1s = glm::rotate(glm::mat4(1.0f), _body.spin.rotation_angle,glm::vec3(0.0f, 1.0f,0.0f));
-	glm::mat4 R_2s = glm::rotate(glm::mat4(1.0f), _locking_axial_tilt, glm::vec3(0.0f, 0.0f, -1.0f));
-	glm::mat4 T_o = glm::translate(glm::mat4(1.0f), glm::vec3(_body.orbit.radius, 0.0f, 0.0f));
-	glm::mat4 R_1o = glm::rotate(glm::mat4(1.0f), _body.orbit.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 R_2o = glm::rotate(glm::mat4(1.0f), _body.orbit.inclination, glm::vec3(0.0f, 0.0f, 1.0f));
-	glm::mat4 fixed_tilt = glm::mat4(1.0f);
-	glm::mat4 world = parent_transform*R_2o*  R_1o *  T_o * R_2s * R_1s *S;
+	S = glm::scale(glm::mat4(1.0f), _body.scale); //2nd arg is the scale.
+	R_1s = glm::rotate(glm::mat4(1.0f), _body.spin.rotation_angle,glm::vec3(0.0f, 1.0f,0.0f));
+	R_2s = glm::rotate(glm::mat4(1.0f), _locking_axial_tilt, glm::vec3(0.0f, 0.0f, -1.0f));
+	T_o = glm::translate(glm::mat4(1.0f), glm::vec3(_body.orbit.radius, 0.0f, 0.0f));
+	R_1o = glm::rotate(glm::mat4(1.0f), _body.orbit.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
+	R_2o = glm::rotate(glm::mat4(1.0f), _body.orbit.inclination, glm::vec3(0.0f, 0.0f, 1.0f));
+	world = parent_transform*R_2o*  R_1o *  T_o * R_2s * R_1s *S;
 	transformed = parent_transform * R_2o * R_1o * T_o * R_2s;
 
 	if (show_basis)
@@ -90,6 +89,11 @@ void CelestialBody::set_spin(SpinConfiguration const& configuration)
 	_body.spin.axial_tilt = configuration.axial_tilt;
 	_body.spin.speed = configuration.speed;
 	_body.spin.rotation_angle = 0.0f;
+}
+
+glm::vec3 CelestialBody::follow_vector() {
+	glm::mat4 T_f = glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	return glm::vec3((R_2o*R_1o* T_f*T_o*glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)));
 }
 
 glm::vec3 CelestialBody::get_pos() {

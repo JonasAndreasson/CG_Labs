@@ -109,7 +109,7 @@ int main()
 	SpinConfiguration const venus_spin{ glm::radians(-2.6f), -glm::two_pi<float>() / 600.0f };
 	OrbitConfiguration const venus_orbit{ 3.0f, glm::radians(-3.9f), glm::two_pi<float>() / 12.0f };
 
-	glm::vec3 const earth_scale{ 0.5f };
+	glm::vec3 const earth_scale{ 0.05f };
 	SpinConfiguration const earth_spin{ glm::radians(-23.0f), glm::two_pi<float>() / 3.0f };
 	OrbitConfiguration const earth_orbit{ 4.0f, glm::radians(-7.2f), glm::two_pi<float>() / 20.0f };
 
@@ -235,7 +235,10 @@ int main()
 	bool show_gui = true;
 	bool show_basis = false;
 	float time_scale = 1.0f;
-
+	CelestialBody *planet_to_follow = nullptr;
+	const char* components[] = { "None","Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune" };
+	static const char* combo_preview_value = components[0];
+	CelestialBody* celestial_bodies[] = { nullptr, &mercury, &venus, &earth, &mars, &jupiter, &saturn, &uranus, &neptune};
 	while (!glfwWindowShouldClose(window)) {
 		//
 		// Compute timings information
@@ -330,6 +333,19 @@ int main()
 			ImGui::SliderFloat("Time scale", &time_scale, 1e-1f, 10.0f);
 			ImGui::Separator();
 			ImGui::Checkbox("Show basis", &show_basis);
+			
+			if (ImGui::BeginCombo("Follow Planet", combo_preview_value))
+			{
+				for (int n = 0; n < 9; n++)
+				{
+					if (ImGui::Selectable(components[n])) {
+						planet_to_follow = celestial_bodies[n];
+						combo_preview_value = components[n];
+					}
+					
+				}
+				ImGui::EndCombo();
+			}
 		}
 		ImGui::End();
 		
@@ -341,8 +357,10 @@ int main()
 			Log::View::Render();
 		window_manager.RenderImGuiFrame(show_gui);
 
-		camera.mWorld.SetTranslate(earth.get_pos()-glm::vec3(0.0f,-2.0f,2.0f));
-		camera.mWorld.LookAt(earth.get_pos());
+		if (planet_to_follow != nullptr) {
+			camera.mWorld.SetTranslate(planet_to_follow->follow_vector());
+			camera.mWorld.LookAt(glm::vec3(0.0f));
+		}
 		//
 		// Queue the computed frame for display on screen
 		//
