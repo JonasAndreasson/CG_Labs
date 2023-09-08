@@ -29,15 +29,15 @@ glm::mat4 CelestialBody::render(std::chrono::microseconds elapsed_time,
 	
 	_body.spin.rotation_angle += _body.spin.speed*elapsed_time_s;
 	_body.orbit.rotation_angle += _body.orbit.speed*elapsed_time_s;
-	_locking_axial_tilt = -_body.spin.axial_tilt*std::cos(_body.orbit.rotation_angle); //This will counteract the reflect, by reflecting the axial tilt based on the position in the orbit.
 	S = glm::scale(glm::mat4(1.0f), _body.scale); //2nd arg is the scale.
 	R_1s = glm::rotate(glm::mat4(1.0f), _body.spin.rotation_angle,glm::vec3(0.0f, 1.0f,0.0f));
-	R_2s = glm::rotate(glm::mat4(1.0f), _locking_axial_tilt, glm::vec3(0.0f, 0.0f, -1.0f));
+	R_2s = glm::rotate(glm::mat4(1.0f), _body.spin.axial_tilt, glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 R_3s= glm::rotate(glm::mat4(1.0f), -_body.orbit.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
 	T_o = glm::translate(glm::mat4(1.0f), glm::vec3(_body.orbit.radius, 0.0f, 0.0f));
 	R_1o = glm::rotate(glm::mat4(1.0f), _body.orbit.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
 	R_2o = glm::rotate(glm::mat4(1.0f), _body.orbit.inclination, glm::vec3(0.0f, 0.0f, 1.0f));
-	world = parent_transform*R_2o*  R_1o *  T_o * R_2s * R_1s *S;
-	transformed = parent_transform * R_2o * R_1o * T_o * R_2s;
+	world = parent_transform*R_2o*  R_1o *  T_o * R_3s *  R_2s  * R_1s *S;
+	transformed = parent_transform * R_2o * R_1o * T_o * R_3s * R_2s;
 
 	if (show_basis)
 	{
