@@ -26,7 +26,7 @@ glm::mat4 CelestialBody::render(std::chrono::microseconds elapsed_time,
 	// If a different ratio was needed, for example a duration in
 	// milliseconds, the following would have been used:
 	// auto const elapsed_time_ms = std::chrono::duration<float, std::milli>(elapsed_time).count();
-	
+	//testign for pushe from school PC
 	_body.spin.rotation_angle += _body.spin.speed*elapsed_time_s;
 	_body.orbit.rotation_angle += _body.orbit.speed*elapsed_time_s;
 	S = glm::scale(glm::mat4(1.0f), _body.scale); //2nd arg is the scale.
