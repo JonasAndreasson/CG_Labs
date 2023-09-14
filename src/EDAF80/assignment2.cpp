@@ -14,6 +14,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <array>
+#include <cmath>
 #include <clocale>
 #include <cstdlib>
 #include <stdexcept>
@@ -43,7 +44,9 @@ void
 edaf80::Assignment2::run()
 {
 	// Load the sphere geometry
-	auto const shape = parametric_shapes::createCircleRing(2.0f, 0.75f, 40u, 4u);
+	//auto const shape = parametric_shapes::createCircleRing(2.0f, 0.75f, 40u, 4u);
+	//auto const shape = parametric_shapes::createQuad(0.25f, 0.15f);
+	auto const shape = parametric_shapes::createSphere(0.15f, 10u, 10u);
 	if (shape.vao == 0u)
 		return;
 
@@ -111,7 +114,7 @@ edaf80::Assignment2::run()
 
 	// Set the default tensions value; it can always be changed at runtime
 	// through the "Scene Controls" window.
-	float catmull_rom_tension = 0.0f;
+	float catmull_rom_tension = 0.5f;
 
 	// Set whether the default interpolation algorithm should be the linear one;
 	// it can always be changed at runtime through the "Scene Controls" window.
@@ -171,7 +174,12 @@ edaf80::Assignment2::run()
 	bool show_basis = false;
 	float basis_thickness_scale = 1.0f;
 	float basis_length_scale = 1.0f;
-
+	float* res = new float(0);
+	float last_second = 0;
+	auto previous_index = control_point_locations.size()-1;
+	auto current_index = 0u;
+	auto next_index = 1u;
+	auto next_next_index = 2u;
 	changeCullMode(cull_mode);
 
 	while (!glfwWindowShouldClose(window)) {
@@ -216,15 +224,41 @@ edaf80::Assignment2::run()
 		if (interpolate) {
 			//! \todo Interpolate the movement of a shape between various
 			//!        control points.
+			//!
+			auto d_time = std::modff(elapsed_time_s,res);
+			if (*res > last_second) {
+				++current_index;
+				++next_index;
+				++next_next_index;
+				++previous_index;
+				last_second = *res;
+				if (current_index >= control_point_locations.size()) {
+					current_index = 0;
+				}
+				if (next_index >= control_point_locations.size()) {
+					next_index = 0;
+				}
+				if (next_next_index >= control_point_locations.size()) {
+					next_next_index = 0;
+				}
+				if (previous_index >= control_point_locations.size()) {
+					previous_index = 0;
+				}
+			}
 			if (use_linear) {
 				//! \todo Compute the interpolated position
 				//!       using the linear interpolation.
+				//! 
+				auto newpos = interpolation::evalLERP(control_point_locations[current_index], control_point_locations[next_index],d_time);
+				circle_rings.get_transform().SetTranslate(newpos);
 			}
 			else {
 				//! \todo Compute the interpolated position
 				//!       using the Catmull-Rom interpolation;
 				//!       use the `catmull_rom_tension`
 				//!       variable as your tension argument.
+				auto newpos = interpolation::evalCatmullRom(control_point_locations[previous_index], control_point_locations[current_index], control_point_locations[next_index], control_point_locations[next_next_index],catmull_rom_tension,d_time);
+				circle_rings.get_transform().SetTranslate(newpos);
 			}
 		}
 
