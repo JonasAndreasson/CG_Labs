@@ -16,5 +16,5 @@ in VS_OUT {
 out vec4 frag_color;
 
 void main(){
-	frag_color = texture(cubemap, fs_in.vertex);
+	frag_color = texture(cubemap, fs_in.normal);
 }
