@@ -40,7 +40,7 @@ void
 edaf80::Assignment4::run()
 {
 	// Set up the camera
-	mCamera.mWorld.SetTranslate(glm::vec3(-40.0f, 14.0f, 6.0f));
+	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 14.0f, 0.0f));
 	mCamera.mWorld.LookAt(glm::vec3(0.0f));
 	mCamera.mMouseSensitivity = glm::vec2(0.003f);
 	mCamera.mMovementSpeed = glm::vec3(3.0f); // 3 m/s => 10.8 km/h
@@ -48,6 +48,7 @@ edaf80::Assignment4::run()
 
 	// Create the shader programs
 	ShaderProgramManager program_manager;
+	float elapsed_time_s = 0.0f;
 	GLuint fallback_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Fallback",
 	                                         { { ShaderType::vertex, "common/fallback.vert" },
@@ -57,14 +58,60 @@ edaf80::Assignment4::run()
 		LogError("Failed to load fallback shader");
 		return;
 	}
+	GLuint skybox_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Skybox",
+		{ { ShaderType::vertex, "EDAF80/skybox.vert" },
+		  { ShaderType::fragment, "EDAF80/skybox.frag" } },
+		skybox_shader);
 
-	//
-	// Todo: Insert the creation of other shader programs.
-	//       (Check how it was done in assignment 3.)
-	//
+	if ((skybox_shader) == 0u)
+		LogError("Failed to load skybox shader");
 
-	float elapsed_time_s = 0.0f;
 
+	GLuint water_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Water",
+		{ { ShaderType::vertex, "EDAF80/water.vert"},
+		{ShaderType::fragment, "EDAF80/water.frag"} }, water_shader);
+	if (water_shader == 0u) {
+		LogError("Failed to load water shader");
+		return;
+	}
+	auto water_uniforms = [&elapsed_time_s, &camera_position](GLuint program) {
+		glUniform1f(glGetUniformLocation(program, "elapsed_time_s"), elapsed_time_s);
+		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
+		};
+	auto quad = parametric_shapes::createQuad(100, 100, 1000, 1000);
+	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
+	auto const set_uniforms = [&light_position](GLuint program) {
+		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
+		};
+	GLuint cubemap = bonobo::loadTextureCubeMap(
+		config::resources_path("cubemaps/NissiBeach2/posx.jpg"),
+		config::resources_path("cubemaps/NissiBeach2/negx.jpg"),
+		config::resources_path("cubemaps/NissiBeach2/posy.jpg"),
+		config::resources_path("cubemaps/NissiBeach2/negy.jpg"),
+		config::resources_path("cubemaps/NissiBeach2/posz.jpg"),
+		config::resources_path("cubemaps/NissiBeach2/negz.jpg"));
+	GLuint wave_texture = bonobo::loadTexture2D(config::resources_path("textures/waves.png"));
+
+	auto skybox_shape = parametric_shapes::createSphere(20.0f, 100u, 100u);
+	if (skybox_shape.vao == 0u) {
+		LogError("Failed to retrieve the mesh for the skybox");
+		return;
+	}
+	Node skybox;
+	skybox.set_geometry(skybox_shape);
+	skybox.add_texture("cubemap", cubemap, GL_TEXTURE_CUBE_MAP);
+	skybox.set_program(&skybox_shader, set_uniforms);
+
+
+
+	Node plane;
+	plane.set_geometry(quad);
+	plane.get_transform().SetTranslate(glm::vec3(-50.0, 0, -50.0));
+	plane.set_program(&water_shader, water_uniforms);
+	plane.add_texture("wave_texture", wave_texture, GL_TEXTURE_2D);
+	plane.add_texture("cubemap", cubemap, GL_TEXTURE_CUBE_MAP);
 	//
 	// Todo: Load your geometry
 	//
@@ -147,9 +194,11 @@ edaf80::Assignment4::run()
 
 
 		if (!shader_reload_failed) {
-			//
-			// Todo: Render all your geometry here.
-			//
+			glDisable(GL_DEPTH_TEST);
+			skybox.get_transform().SetTranslate(camera_position);
+			skybox.render(mCamera.GetWorldToClipMatrix());
+			glEnable(GL_DEPTH_TEST);
+			plane.render(mCamera.GetWorldToClipMatrix());
 		}
 
 
