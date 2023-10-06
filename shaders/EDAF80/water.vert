@@ -54,12 +54,13 @@ void main()
 	float y = y1 + y2;
 	float dhdx = dgdx1 + dgdx2;
 	float dhdz = dgdz1 + dgdz2;
-	vs_out.vertex = vec3(vertex.x,y,vertex.z);
-	vs_out.binormal = vec3(0.0, dhdz,1.0);
+	vec4 vertex_displaced = vertex_model_to_world * vec4(vertex, 1.0);
+	vs_out.vertex = vec3(vertex_displaced.x,y,vertex_displaced.z);
+	vs_out.binormal = vec3(0.0, dhdz,1.0);	
 	vs_out.tangent = vec3(1.0, dhdx, 0.0);
 	vs_out.normal = vec3(-dhdx, 1.0, -dhdz);
 	vs_out.texture = texcoords.xy;
-	gl_Position = vertex_world_to_clip * vertex_model_to_world * vec4(vs_out.vertex, 1.0);
+	gl_Position = vertex_world_to_clip * vec4(vs_out.vertex, 1.0);
 }
 
 
