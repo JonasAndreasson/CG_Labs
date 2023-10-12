@@ -30,6 +30,7 @@ void wave_height(in float x, in float z, in float t, in float A, in float Dx, in
 
 void main()
 {
+
 	vec4 vertex_displaced = vertex_model_to_world * vec4(vertex, 1.0);
 	float y1 = 0;
 	float dgdx1 = 0;

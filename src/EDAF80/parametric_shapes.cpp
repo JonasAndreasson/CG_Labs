@@ -35,11 +35,11 @@ parametric_shapes::createQuad(float const width, float const height,
 	}
 	float width_delta = width / horizontal_split_count;
 	float height_delta = height / vertical_split_count;
-	float w = 0.0f;
-	float h = 0.0f;
+	float w = -width/2;
+	float h = -height/2;
 	size_t index = 0u;
 	for (unsigned int i = 0u; i < horizontal_slice_vertices_count; ++i) {
-		w = 0.0f;
+		w = -width / 2;
 		for (unsigned int j = 0u; j < vertical_slice_vertices_count; ++j) {
 			// vertex
 			vertices[index] = glm::vec3(

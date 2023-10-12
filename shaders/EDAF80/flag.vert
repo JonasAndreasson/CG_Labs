@@ -30,7 +30,6 @@ void wave_height(in float x, in float z, in float t, in float A, in float Dx, in
 
 void main()
 {
-	vec4 vertex_displaced = vertex_model_to_world * vec4(vertex, 1.0);
 	float y1 = 0;
 	float dgdx1 = 0;
 	float dgdz1 = 0;
@@ -40,7 +39,7 @@ void main()
 	float f1 = 0.2;
 	float p1 = 0.5;
 	float k1 = 2.0;
-	wave_height(vertex_displaced.x, vertex_displaced.z, elapsed_time_s,A1,Dx1,Dz1,f1,p1,k1,y1, dgdx1, dgdz1);
+	wave_height(vertex.x, vertex.z, elapsed_time_s,A1,Dx1,Dz1,f1,p1,k1,y1, dgdx1, dgdz1);
 	float y2 = 0;
 	float dgdx2 = 0;
 	float dgdz2 = 0;
@@ -50,11 +49,14 @@ void main()
 	float f2 = 0.4;
 	float p2 = 1.3;
 	float k2 = 2.0;
-	wave_height(vertex_displaced.x, vertex_displaced.z, elapsed_time_s,A2,Dx2,Dz2,f2,p2,k2,y2, dgdx2, dgdz2);
+	wave_height(vertex.x, vertex.z, elapsed_time_s,A2,Dx2,Dz2,f2,p2,k2,y2, dgdx2, dgdz2);
 
 	float y = y1 + y2;
 	float dhdx = dgdx1 + dgdx2;
 	float dhdz = dgdz1 + dgdz2;
+	vec4 vertex_displaced = vertex_model_to_world * vec4(vertex, 1.0);
+	vertex_displaced.x += 0.03*sin((3*vertex_displaced.x)+elapsed_time_s);
+	vertex_displaced.z += 0.03*sin((3*vertex_displaced.z)+elapsed_time_s);
 	vs_out.vertex = vec3(vertex_displaced.x,vertex_displaced.y+y,vertex_displaced.z);
 	vs_out.binormal = vec3(0.0, dhdz,1.0);	
 	vs_out.tangent = vec3(1.0, dhdx, 0.0);

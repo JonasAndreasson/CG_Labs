@@ -41,6 +41,8 @@ void main()
 {
 	vec3 V = normalize(camera_position-fs_in.vertex);
 	vec3 n = ripples(vec3(fs_in.texture, 0.0)); //bump map
+
+	if (gl_FrontFacing) {
 	vec4 color_deep = vec4(0.0,0.0,0.1,1.0);
 	vec4 color_shallow = vec4(0.0,0.5,0.5,1.0);
 	float facing = 1 - max(dot(V,n), 0);
@@ -51,4 +53,15 @@ void main()
 	vec4 refraction = texture(cubemap,	normalize(refract(-V, n, eta)));
 	float fresnel = fresnel_calc(0.02037, V, n);
 	frag_color = water_color + reflection*fresnel +refraction * (1-fresnel);
+	}
+	else {
+	vec3 R = normalize(reflect(V, n));
+	vec4 reflection = texture(cubemap, R);
+	float eta = 1.33/1.0;
+	vec4 refraction = texture(cubemap,	normalize(refract(-V, -n, eta)));
+	float fresnel = fresnel_calc(0.02037, -V, n);
+	frag_color = reflection*fresnel +refraction * (1-fresnel);
+
+
+	}
 }
