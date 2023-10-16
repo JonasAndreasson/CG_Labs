@@ -7,13 +7,29 @@
 #include "core/node.hpp"
 #include "core/ShaderProgramManager.hpp"
 #include "parametric_shapes.hpp"
-
+#include <stdlib.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/common.hpp>
 #include <imgui.h>
 #include <tinyfiledialogs.h>
 #include <clocale>
 #include <stdexcept>
+
+enum game_states
+{
+	NOT_STARTED = 0,
+	RUNNING = 1,
+	PAUSED = 2,
+	GAME_OVER = 3
+};
+
+enum collision
+{
+	OUTSIDE = 0,
+	INSIDE = 1,
+	HIT = 2
+};
+
 
 edaf80::Assignment5::Assignment5(WindowManager& windowManager) :
 	mCamera(0.5f * glm::half_pi<float>(),
@@ -42,18 +58,47 @@ bool testSphereSphere(glm::vec3 p1, float r1, glm::vec3 p2, float r2) {
 	return std::abs(glm::distance(p1, p2)) < (r1 + r2);
 }
 
-bool testBoatTorus(glm::vec3 boat_pos, glm::vec3 torus_pos, glm::vec3 torus_normal,float torus_outer_radius, float torus_inner_radius) {
+collision testBoatTorus(glm::vec3 boat_pos, glm::vec3 torus_pos, glm::vec3 torus_normal,float torus_outer_radius, float torus_inner_radius) {
 	float disc_radius = torus_outer_radius - torus_inner_radius;
-	if (!testSphereSphere(boat_pos, 0.01f, torus_pos, disc_radius)) return false;
+	if (!testSphereSphere(boat_pos, 0.01f, torus_pos, torus_outer_radius)) return OUTSIDE;
 	glm::vec3 pq = (glm::vec3(0, 1, 0) * disc_radius);
 	glm::vec3 pr = (torus_normal * disc_radius);
 	glm::vec3 plane_coef = glm::cross(pq, pr);
-	glm::vec3 norm = torus_inner_radius*glm::normalize(plane_coef);
+	glm::vec3 inside = torus_inner_radius*glm::normalize(plane_coef);
+	glm::vec3 outside = torus_outer_radius * glm::normalize(plane_coef);
 	float g = glm::dot(boat_pos, plane_coef);
-	float lbound = glm::dot(torus_pos - norm, plane_coef);
-	float ubound = glm::dot(torus_pos + norm, plane_coef);
-	return  (g >= lbound && g <= ubound) && testSphereSphere(boat_pos, 0.01f, torus_pos, disc_radius);
+	float inside_lbound = glm::dot(torus_pos - inside, plane_coef);
+	float inside_ubound = glm::dot(torus_pos + inside, plane_coef);
+	if ((g >= inside_lbound && g <= inside_ubound) && testSphereSphere(boat_pos, 0.01f, torus_pos, disc_radius))
+	{
+		return INSIDE;
+	}
+	else if ((g >= inside_lbound && g <= inside_ubound) && testSphereSphere(boat_pos, 0.01f, torus_pos, torus_outer_radius))
+	{
+		return HIT;
+	}
+	else
+	{
+		return OUTSIDE;
+	}
+	
 }
+
+float random_angle(float max)
+{
+	return max * rand() / (RAND_MAX + 1.0f);
+}
+
+glm::vec3 random_pos(glm::vec3 boat_pos, float d)
+{
+	if (d > 300) d = 300;
+	float angle = random_angle(glm::two_pi<float>());
+	glm::vec3 new_pos = glm::vec3(0.0);
+	new_pos.x = d * cos(angle);
+	new_pos.z = d * sin(angle);
+	return new_pos;
+}
+
 
 void edaf80::Assignment5::run()
 {
@@ -61,10 +106,13 @@ void edaf80::Assignment5::run()
 	glm::vec3 camera_displacement = glm::vec3(-1.0f, 1.0f, -1.0f);
 	mCamera.mWorld.SetTranslate(camera_displacement);
 	mCamera.mMouseSensitivity = glm::vec2(0.003f);
-	mCamera.mMovementSpeed = glm::vec3(0.0f); // 3 m/s => 10.8 km/h
+	mCamera.mMovementSpeed = glm::vec3(3.0f); // 3 m/s => 10.8 km/h
 	mCamera.mWorld.LookAt(glm::vec3(2.0f,1.0f,0.0f));
+	game_states game_state = NOT_STARTED;
 	auto camera_position = mCamera.mWorld.GetTranslation();
 	float elapsed_time_s = 0.0f;
+	float remaining_time = 30.0f;
+	int score_counter = 0;
 	auto light_position = glm::vec3(0.0f, 10.0f, 0.0f);
 	// Create the shader programs
 	ShaderProgramManager program_manager;
@@ -77,6 +125,15 @@ void edaf80::Assignment5::run()
 		LogError("Failed to load fallback shader");
 		return;
 	}
+	//Sampler
+	auto s = [](GLuint a) {
+		glSamplerParameteri(a, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		};
+	
+	GLuint sampler = bonobo::createSampler(s);
+
+
+
 	// Skybox 
 	GLuint skybox_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Skybox",
@@ -124,6 +181,16 @@ void edaf80::Assignment5::run()
 		return;
 	}
 
+	GLuint score_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Score",
+		{ { ShaderType::vertex, "EDAF80/score.vert" },
+		{ ShaderType::fragment, "EDAF80/score.frag" } },
+		score_shader);
+	if (score_shader == 0u) {
+		LogError("Failed to load score shader");
+		return;
+	}
+
 
 
 
@@ -138,6 +205,9 @@ void edaf80::Assignment5::run()
 	);
 	GLuint wave_texture = bonobo::loadTexture2D(config::resources_path("textures/waves.png"));
 	GLuint rainbow_texture = bonobo::loadTexture2D(config::resources_path("textures/Seamless_Rainbow.png"));
+	GLuint not_running_texture = bonobo::loadTexture2D(config::resources_path("textures/not-running.png"));
+	GLuint pause_texture = bonobo::loadTexture2D(config::resources_path("textures/pause.png"));
+	GLuint game_over_texture = bonobo::loadTexture2D(config::resources_path("textures/game-over.png"));
 
 
 	auto skybox_shape = parametric_shapes::createSphere(100.0f, 100u, 100u);
@@ -190,15 +260,35 @@ void edaf80::Assignment5::run()
 	for (unsigned int i = 0; i < 5; i++) {
 		Node goal;
 		goal.set_geometry(parametric_shapes::createTorus(20.0f, 3.0f, 100u, 100u));
-		goal.get_transform().SetTranslate(glm::vec3(10 + i * 100, 0, 0));
 		goal.get_transform().SetRotateZ(glm::half_pi<float>()); //Stands it up on it's edge
-		goal.get_transform().Rotate(0.5f*i, glm::vec3(1, 0, 0)); //rotates it around the world y axis
+		goal.get_transform().SetTranslate(random_pos(glm::vec3(0,0,0), 100.0f));
+		goal.get_transform().Rotate(random_angle(glm::two_pi<float>()), glm::vec3(1, 0, 0));
 		goal.add_texture("rainbow", rainbow_texture, GL_TEXTURE_2D);
 		goal.set_program(&goal_shader);
 		goal_posts.push_back(goal);
+		
 	}
+	int* width = new int(0);
+	int* height = new int(0);
+	glfwGetWindowSize(window, width, height);
+	glm::vec2 res = glm::vec2(*width, *height);
+	delete width;
+	width = nullptr;
+	delete height;
+	height = nullptr;
 
-
+	
+	auto score_uniform = [&elapsed_time_s, &score_counter, &res](GLuint program) {
+		glUniform1f(glGetUniformLocation(program, "elapsed_time_s"), elapsed_time_s);
+		glUniform1i(glGetUniformLocation(program, "score"), score_counter);
+		glUniform2fv(glGetUniformLocation(program, "iResolution"), 1, glm::value_ptr(res));
+		};
+	std::cout << res << '\n';
+	auto score_shape = parametric_shapes::createQuad(40, 40, 80, 80);
+	Node score;
+	score.set_geometry(score_shape);
+	score.get_transform().SetRotateZ(glm::half_pi<float>());
+	score.set_program(&score_shader, score_uniform);
 
 	glClearDepthf(1.0f);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -218,7 +308,7 @@ void edaf80::Assignment5::run()
 	glm::vec3 acc = glm::vec3(0.0f);
 	float friction = -0.05f;
 	glm::vec3 friction_vec = glm::vec3(1.0f, 0.0f, 1.0f);
-	float acc_speed = 0.1f;
+	float acc_speed = 0.5f;
 	float max_acc = 2.0f;
 	glm::mat3 turning = glm::mat3(glm::vec3(cos(angle), 0.0f, 0.0f), glm::vec3(0.0f,1.0f,0.0f), glm::vec3(0.0f,0.0f,-sin(angle)));
 	float camera_follow_distance = 20.0f;
@@ -229,7 +319,6 @@ void edaf80::Assignment5::run()
 		auto const nowTime = std::chrono::high_resolution_clock::now();
 		auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
 		lastTime = nowTime;
-		elapsed_time_s += std::chrono::duration<float>(deltaTimeUs).count();
 		camera_position = mCamera.mWorld.GetTranslation();
 		auto& io = ImGui::GetIO();
 		inputHandler.SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
@@ -275,30 +364,19 @@ void edaf80::Assignment5::run()
 			if (acc.z > max_acc) acc.z = max_acc;
 		}
 		if (inputHandler.GetKeycodeState(GLFW_KEY_S) & PRESSED) {
-			acc.x =0;
+			acc.x = 0;
 			acc.z = 0;
 		}
 		if (inputHandler.GetKeycodeState(GLFW_KEY_W) & JUST_RELEASED) {
 			acc.x = 0;
 			acc.z = 0;
 		}
-		float dt = std::chrono::duration<float>(deltaTimeUs).count();
-		//acc += friction * friction_vec;
-		camera_follow_matrix =  glm::mat3(camera_follow_distance * glm::vec3(cos(angle), 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), camera_follow_distance * glm::vec3(0.0f, 0.0f, -sin(angle)));
-		turning = glm::mat3(glm::vec3(cos(angle), 0.0f, 0.0f), glm::vec3(0.0f,1.0f,0.0f), glm::vec3(0.0f, 0.0f, -sin(angle)));
-		glm::vec3 speed_loss = friction * friction_vec * dt;
-		vel += acc * dt + speed_loss;
-		if (vel.x < 0) {
-			vel.x = 0;
-		}
-		if (vel.z < 0) {
-			vel.z = 0;
-		}
-		if (glm::distance(vel, glm::vec3(0.0f)) > 20) {
-			vel = 20.0f * glm::normalize(vel);
-		}
-		pos += turning * vel * dt;
+		if (inputHandler.GetKeycodeState(GLFW_KEY_ENTER) & JUST_PRESSED) {
+			if (game_state == RUNNING) game_state = PAUSED;
+			else if (game_state == PAUSED) game_state = RUNNING;
+			else if (game_state == NOT_STARTED) game_state = RUNNING;
 
+		}
 		//
 		// Todo: If you need to handle inputs, you can do it here
 		//
@@ -307,28 +385,83 @@ void edaf80::Assignment5::run()
 		mWindowManager.NewImGuiFrame();
 
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+		float dt;
+		switch (game_state) {
 
+		case RUNNING:
+			elapsed_time_s += std::chrono::duration<float>(deltaTimeUs).count();
+			dt = std::chrono::duration<float>(deltaTimeUs).count();
+			remaining_time -= dt;
+			if (remaining_time < 0)
+			{
+				game_state = GAME_OVER;
+				break;
+			}
+			camera_follow_matrix = glm::mat3(camera_follow_distance * glm::vec3(cos(angle), 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), camera_follow_distance * glm::vec3(0.0f, 0.0f, -sin(angle)));
+			turning = glm::mat3(glm::vec3(cos(angle), 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -sin(angle)));
+			glm::vec3 speed_loss = (friction * vel + friction_vec * friction) * dt;
+			vel += acc * dt + speed_loss;
+			if (glm::distance(vel, glm::vec3(0.0f)) > 40) {
+				vel = 40.0f * glm::normalize(vel);
+			}
+			pos += turning * vel * dt;
+			if (!shader_reload_failed) {
+				mCamera.mWorld.SetTranslate(camera_follow_matrix * camera_displacement + pos);
+				mCamera.mWorld.LookAt(pos + glm::vec3(10.0f * cos(angle), 0.0f, 10.0f * -sin(angle)));
+				glDisable(GL_DEPTH_TEST);
+				skybox.get_transform().SetTranslate(glm::vec3(camera_position));
+				skybox.render(mCamera.GetWorldToClipMatrix());
 
-		if (!shader_reload_failed) {
-			mCamera.mWorld.SetTranslate(camera_follow_matrix *camera_displacement + pos);
-			mCamera.mWorld.LookAt(pos+glm::vec3(10.0f*cos(angle), 0.0f, 10.0f*-sin(angle)));
-			glDisable(GL_DEPTH_TEST);
-			skybox.get_transform().SetTranslate(glm::vec3(camera_position));
-			skybox.render(mCamera.GetWorldToClipMatrix());
-			glEnable(GL_DEPTH_TEST);
-			surface.get_transform().SetTranslate(glm::vec3(pos));
-			surface.render(mCamera.GetWorldToClipMatrix());
-			for (Node& b : boat) {
-				b.get_transform().SetTranslate(pos);
-				b.get_transform().SetRotate(angle, glm::vec3(0, 1, 0));
-				b.render(mCamera.GetWorldToClipMatrix());
+				glEnable(GL_DEPTH_TEST);
+				surface.get_transform().SetTranslate(glm::vec3(pos));
+				surface.render(mCamera.GetWorldToClipMatrix());
+				
+				for (Node& g : goal_posts) {
+					auto col_check = testBoatTorus(pos, g.get_transform().GetTranslation(), g.get_transform().GetFront(), 20.0f, 3.0f);
+					if (col_check == INSIDE)
+					{
+						g.get_transform().SetTranslate(random_pos(pos, score_counter*50.0f));
+						g.get_transform().Rotate(random_angle(glm::two_pi<float>()), glm::vec3(1, 0, 0));
+						std::cout << "pos: " << pos << "torus_pos: " << g.get_transform().GetTranslation() << '\n';
+						++score_counter;
+						remaining_time += 3.0f;
+					}
+					else if (col_check == HIT) {
+						if (glm::distance(vel, glm::vec3(0, 0, 0)) > 0) {
+							vel *= -1.0f;
+						}
+						pos += turning * vel * dt;
+						vel *= 0.5f;
+						if (glm::distance(vel, glm::vec3(0, 0, 0)) > -10) {
+							vel = 10.0f * glm::normalize(vel);
+						}
+						
+					}
+
+					g.render(mCamera.GetWorldToClipMatrix());
+				}
+
+				for (Node& b : boat) {
+					b.get_transform().SetTranslate(pos);
+					b.get_transform().SetRotate(angle, glm::vec3(0, 1, 0));
+					b.render(mCamera.GetWorldToClipMatrix());
+				}
 			}
-			for (Node& g : goal_posts) {
-				if (testBoatTorus(pos, g.get_transform().GetTranslation(), g.get_transform().GetFront(), 20.0f, 3.0f)) g.get_transform().SetTranslate(pos+glm::vec3(40,0,40));
-				g.render(mCamera.GetWorldToClipMatrix());
-			}
+			break;
+		case NOT_STARTED:
+			dt = 0;
+			bonobo::displayTexture(glm::vec2(-1, -1), glm::vec2(1, 1), not_running_texture, sampler, glm::vec4(0, 1, 2, 3), glm::vec2(framebuffer_width, framebuffer_height));
+			break;
+
+		case PAUSED:
+			dt = 0;
+			bonobo::displayTexture(glm::vec2(-1, -1), glm::vec2(1, 1), pause_texture, sampler,glm::vec4(0, 1, 2, 3), glm::vec2(framebuffer_width, framebuffer_height));
+			break;
+		case GAME_OVER:
+			dt = 0;
+			bonobo::displayTexture(glm::vec2(-1, -1), glm::vec2(1, 1), game_over_texture, sampler, glm::vec4(0, 1, 2, 3), glm::vec2(framebuffer_width, framebuffer_height));
+			break;
 		}
-
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -341,6 +474,24 @@ void edaf80::Assignment5::run()
 			ImGui::Checkbox("Show basis", &show_basis);
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
+		}
+		ImGui::End();
+
+		bool const game_info = ImGui::Begin("Game Info", nullptr, ImGuiWindowFlags_None);
+		if (game_info) {
+			
+			std::string score_string("Score: " + std::to_string(score_counter));
+			std::string speed_string("Speed: " + std::to_string(glm::distance(vel, glm::vec3(0, 0, 0))));
+			std::string time_string;
+			if (game_state != GAME_OVER) {
+				time_string = "Remaining time:" + std::to_string(remaining_time);
+			}
+			else {
+				time_string = "Time Survived:" + std::to_string(int(elapsed_time_s))+" seconds!!!";
+			}
+			ImGui::Text(score_string.c_str());
+			ImGui::Text(speed_string.c_str());
+			ImGui::Text(time_string.c_str());
 		}
 		ImGui::End();
 
