@@ -44,10 +44,7 @@ void main()
 	frag_pos.y = gl_FragCoord.x * inverse_screen_resolution.y;
 	vec4 n = texture(normal_texture, frag_pos);
 	n = 2*n-1;
-	vec4 ws_pos = texture(depth_texture, frag_pos)*view_projection_inverse;
-	ws_pos = ws_pos/gl_FragCoord.w;
-	vec3 light = ws_pos;
-	light_diffuse_contribution  = vec4(0.2, 0.0, 0.0,1.0);
+	light_diffuse_contribution  = n;
 	light_specular_contribution = vec4(0.0, 0.0, 0.0, 1.0);
 }
 
