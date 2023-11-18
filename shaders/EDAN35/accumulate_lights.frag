@@ -61,22 +61,14 @@ void main()
 	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off;
 
 	//SHADOWS
-	
-	mat4 shadow_projection = lights[light_index].view_projection; //world -> shadow 
-	mat4 shadow_projection_inverse = lights[light_index].view_projection_inverse; //shadow -> world
 
 
-	
-	vec4 shadow_pos = vec4(vertex_pos,1.0)*shadow_projection; // takes vertex from world into light projection
-	vec3 shadow_vertex = shadow_pos.xyz / shadow_pos.w; // divide by w
-	shadow_vertex = (shadow_vertex + 1.0f)/2.0f; // [0, 1]
+	vec4 fragPosLightSpace = lights[light_index].view_projection * vec4(vertex_pos, 1.0);
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	projCoords = projCoords * 0.5 + 0.5;
+	float shadow_depth = texture(shadow_texture, projCoords.xy).r;
 
-	//shadow_vertex.x = shadow_vertex.x *shadowmap_texel_size.x;
-	//shadow_vertex.y = shadow_vertex.y *shadowmap_texel_size.y;
-
-	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r; //[0, 1]
-
-	if (shadow_depth < shadow_vertex.z){
+	if (projCoords.z > shadow_depth){
 	light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
 	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);
 	}
