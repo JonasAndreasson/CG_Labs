@@ -48,9 +48,16 @@ void main()
 	vec4 world_pos = vec4(camera.view_projection_inverse * proj_pos);
 	vec3 vertex_pos = world_pos.xyz / world_pos.w;
 	vec3 L = normalize(-light_direction);
-	light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0);
 	vec3 r = reflect(-L, normal);
 	vec3 v = normalize(camera_position - vertex_pos.xyz);
-	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0);
+	vec3 light_to_vertex = light_position - vertex_pos.xyz;
+	float distance= length(light_to_vertex); //get the distance from light to point
+	float distance_fall_off = 1/(distance*distance); //inverse-square law
+	float vertex_angle = acos(dot(L, light_to_vertex)/(length(L)*distance)); // [0, pi]
+	float angle = clamp(vertex_angle, 0, light_angle_falloff); //sets angle to [0, light_angle_falloff]
+	float angular_fall_off = smoothstep(light_angle_falloff,0,angle); //[0,1] where 1 is bright, and 0 is none
+	float total_fall_off = light_intensity*distance_fall_off * angular_fall_off;
+	light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off;
 }
 
