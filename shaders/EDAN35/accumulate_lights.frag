@@ -68,7 +68,7 @@ void main()
 	projCoords = projCoords * 0.5 + 0.5;
 	float shadow_depth = texture(shadow_texture, projCoords.xy).r;
 
-	if (projCoords.z > shadow_depth){
+	if (projCoords.z-0.00001 > shadow_depth){
 	light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
 	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);
 	}
