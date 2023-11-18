@@ -57,8 +57,8 @@ void main()
 	float angle = clamp(vertex_angle, 0, light_angle_falloff); //sets angle to [0, light_angle_falloff]
 	float angular_fall_off = smoothstep(light_angle_falloff,0,angle); //[0,1] where 1 is bright, and 0 is none
 	float total_fall_off = light_intensity*distance_fall_off * angular_fall_off;
-	light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
-	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
+	//light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	//light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
 	
 	//SHADOWS
 
@@ -69,33 +69,30 @@ void main()
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
 	
-	/*if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
+	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
 	light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
-	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);}*/
+	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);}
 	
 	//light_diffuse_contribution = vec4(shadow_vertex.xy/shadowmap_texel_size, 0.0,1.0);
 
-	int sampling_depth = 1;
-	float shadow_sum = 0;
-
-	for (int a = -sampling_depth; a< sampling_depth; a++){
-		for (int b = -sampling_depth; b< sampling_depth; b++){
-
-			float shadow_depth = texture(shadow_texture, vec2(shadow_vertex.x + a, shadow_vertex.y +b)).r; //Take a step along coordinates
 	
-			if (shadow_vertex.z-0.001 > shadow_depth){ //If in shadow
-				shadow_sum ++; //count how many of nearby squares are in the shadow.
+	float shadow_sum;
+
+	for (int a = 0; a < 2; a++){
+		for (int b = 0; b < 2; b++){
+
+			float temp_depth = texture(shadow_texture, vec2(shadow_vertex.x  -1 + a, shadow_vertex.y -1 +b)).r; //Take a step along coordinates
+	
+			if (shadow_vertex.z-0.001 > temp_depth){ //If in shadow
+				shadow_sum ++; //count how many of nearby squares are blocked/shaded
 			}
 		}
 	}
 
-	float shadow_weight = (shadow_sum / (sampling_depth*2 * sampling_depth*2));
+	shadow_sum/(4); //normalize
 
-	if (shadow_weight > 0){
-	
-	light_diffuse_contribution  = (1-shadow_weight)*vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off + shadow_weight*vec4(0.0,0.0,0.0,1.0);
-	light_specular_contribution = (1-shadow_weight)*vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off + shadow_weight*vec4(0.0,0.0,0.0,1.0);
-	}
+	light_diffuse_contribution  += (1-shadow_sum) * vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	light_specular_contribution += (1-shadow_sum) * vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
 }
 
 
