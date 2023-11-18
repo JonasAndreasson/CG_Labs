@@ -75,6 +75,6 @@ void main()
 	light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
 	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);
 	}
-	//light_diffuse_contribution = vec4(shadow_vertex.xy/shadowmap_texel_size, 0.0,1.0);
+	light_diffuse_contribution = vec4(shadow_vertex.xy, 0.0,1.0);
 }
 
