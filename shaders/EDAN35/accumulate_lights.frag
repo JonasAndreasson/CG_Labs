@@ -57,75 +57,73 @@ void main()
 	float angle = clamp(vertex_angle, 0, light_angle_falloff); //sets angle to [0, light_angle_falloff]
 	float angular_fall_off = smoothstep(light_angle_falloff,0,angle); //[0,1] where 1 is bright, and 0 is none
 	float total_fall_off = light_intensity*distance_fall_off * angular_fall_off;
-	//light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
-	//light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
+	light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
 	
-	//SHADOWS
+	//--- SHADOWS ---
 
 	mat4 shadow_projection = lights[light_index].view_projection;
 
 	vec4 shadow_pos = shadow_projection * vec4(vertex_pos, 1.0f);
 	vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w;
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
+	
+
+		//--- Basic Shadow ---
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
+	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
+	light_diffuse_contribution  = vec4(0.001,0.001,0.001,1.0);
+	light_specular_contribution = vec4(0.001,0.001,0.001,1.0);}
+		//--- Basic Shadow ---
+
 	
-	//if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
-	//light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
-	//light_specular_contribution = vec4(0.0,0.0,0.0,1.0);}
+	// light_diffuse_contribution = vec4(shadow_vertex.xy/shadowmap_texel_size, 0.0,1.0); //Test
+
+	//--- Percentage Closer Filtering ---
+
+	float shadow_sum = 0;
+	float window_size = 2;
+
+	for (int a = 0; a < window_size; ++a){
+		for (int b = 0; b < window_size; ++b){
+
+		// Test2: THIS IS CORRECT!
+			vec4 shadow_pos = shadow_projection * vec4(vertex_pos.x -window_size/2 + a, vertex_pos.y -window_size/2 + b,vertex_pos.z, 1.0f);
+			vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w ;
+			shadow_vertex =  shadow_vertex * 0.5f + 0.5f;
+			float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
+
+			// Test1: Use same shadow_vertex for and just sample differnet depths. - DOESN'T SEEM TO WORK!
+			//float shadow_depth = texture(shadow_texture, vec2(shadow_vertex.x  -1 + a, shadow_vertex.y -1 +b)).r; //Take a step along coordinates
 	
-	//light_diffuse_contribution = vec4(shadow_vertex.xy/shadowmap_texel_size, 0.0,1.0);
-
-	/* LAB1------------
-	for (int j = 0; j < imageHeight; ++j) {
-        for (int i = 0; i < imageWidth; ++i) {
-
-            Color pixel;
-            // Get center of pixel coordinate
-            for (int x = 0; x < 3; ++x) {
-                for (int y = 0; y < 3; ++y) {
-
-                    
-                    float cx = ((float)i) + (1 + 2 * x) / 6.0f + 2 * (uniform() - 0.5)/6.0f;
-                    float cy = ((float)j) + (1 + 2 * y) / 6.0f + 2 * (uniform() - 0.5)/6.0f;
-
-                    // Get a ray and trace it
-                    Ray r = camera.getRay(cx, cy);
-                    pixel += traceRay(r, scene, depth);
-                }
-            }
-            pixel *= (1.0f/9.0f); 
-            // Write pixel value to image
-            writeColor((j * imageWidth + i) * numChannels, pixel, pixels);
-        }
-    }
-	---------------
-*/
-	
-	float shadow_sum;
-
-	for (int a = 0; a < 2; a++){
-		for (int b = 0; b < 2; b++){
-
-			float temp_depth = texture(shadow_texture, vec2(shadow_vertex.x  -1 + a, shadow_vertex.y -1 +b)).r; //Take a step along coordinates
-	
-			if (shadow_vertex.z-0.001 > temp_depth){ //If in shadow - wrong shadow_vertex.z.....?
-				shadow_sum ++; //count how many of nearby squares are blocked/shaded
+			if (shadow_vertex.z-0.001 > shadow_depth){ //if nearby square is in shadow
+				light_diffuse_contribution -= light_diffuse_contribution/(window_size*window_size);
+				light_specular_contribution -= light_specular_contribution/(window_size*window_size); //make square a little darker
+				//shadow_sum++;
 			}
 		}
 	}
 
-	shadow_sum/(4); //normalize
+
+	//----- all of this is probably useless now -----
+
+
+	//shadow_sum/(4); //normalize
 	//If all nearby squares are in shadow -> shadow_sum = 1
 	//If no nearby squares are in shadow -> shadow_sum = 0
 
-	// Testing! - Correct results!!
+	// Testing! - Correct results here!!
 	//shadow_sum = 0; //no shadows
 	//shadow_sum = 1; //all shadows
 
 
-	//This is no different!!!
-	light_diffuse_contribution  = shadow_sum* vec4(0.0,0.0,0.0,1.0) + (1-shadow_sum) * vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
-	light_specular_contribution = shadow_sum* vec4(0.0,0.0,0.0,1.0) + (1-shadow_sum) * vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
+	/*THIS IS PROBABLY THE ISSUE... NOT SURE HOW TO DECIDE COLORS...
+	If full in shadow -> vec4(0.001,0.001,0.001,1.0)
+	If fully in light -> vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off
+	*/
+	//light_diffuse_contribution  =+ vec4(0.01,0.01,0.01,1.0); // + (1-shadow_sum) * vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	
+	//light_specular_contribution =+ vec4(0.01,0.01,0.01,1.0); // + (1-shadow_sum) * vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
 }
 
 
