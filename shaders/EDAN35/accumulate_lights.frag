@@ -63,17 +63,33 @@ void main()
 	//--- SHADOWS ---
 
 	mat4 shadow_projection = lights[light_index].view_projection;
-
 	vec4 shadow_pos = shadow_projection * vec4(vertex_pos, 1.0f);
 	vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w;
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
-	
-
-		//--- Basic Shadow ---
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
 	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
-	light_diffuse_contribution  = vec4(0.001,0.001,0.001,1.0);
-	light_specular_contribution = vec4(0.001,0.001,0.001,1.0);}
+	
+	int window_size = 6; // should be n
+	int loop_range = window_size/2;
+	float n_lit = window_size*window_size;
+	for (int i = -loop_range; i < loop_range; ++i){
+	for (int j = -loop_range; j < loop_range; ++j){
+		//--- Basic Shadow ---
+	vec2 temp = shadow_vertex.xy;
+	temp.x += (shadowmap_texel_size.x*(i+0.5));
+	temp.y += (shadowmap_texel_size.y*(j+0.5));
+	float shadow_depth = texture(shadow_texture, temp.xy).r;
+	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
+		n_lit -= 1.0;
+	}
+	}
+	}
+	float shaded_ratio = n_lit/(window_size*window_size);
+	light_diffuse_contribution  *= shaded_ratio; //our calculated float
+	light_specular_contribution *= shaded_ratio;
+	light_diffuse_contribution.w = 1.0;
+	light_specular_contribution.w = 1.0;
+	}
 		//--- Basic Shadow ---
 
 	
@@ -81,29 +97,30 @@ void main()
 
 	//--- Percentage Closer Filtering ---
 
-	float shadow_sum = 0;
-	float window_size = 2;
+	//float shadow_sum = 0;
+	//float window_size = 2;
 
-	for (int a = 0; a < window_size; ++a){
-		for (int b = 0; b < window_size; ++b){
+	//for (int a = 0; a < window_size; ++a){
+		//for (int b = 0; b < window_size; ++b){
 
 		// Test2: THIS IS CORRECT!
-			vec4 shadow_pos = shadow_projection * vec4(vertex_pos.x -window_size/2 + a, vertex_pos.y -window_size/2 + b,vertex_pos.z, 1.0f);
-			vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w ;
-			shadow_vertex =  shadow_vertex * 0.5f + 0.5f;
-			float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
+			//vec4 shadow_pos = shadow_projection * vec4(vertex_pos.x -window_size/2 + a, vertex_pos.y -window_size/2 + b,vertex_pos.z, 1.0f);
+			//vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w ;
+			//shadow_vertex =  shadow_vertex * 0.5f + 0.5f;
+			//float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
 
 			// Test1: Use same shadow_vertex for and just sample differnet depths. - DOESN'T SEEM TO WORK!
 			//float shadow_depth = texture(shadow_texture, vec2(shadow_vertex.x  -1 + a, shadow_vertex.y -1 +b)).r; //Take a step along coordinates
 	
-			if (shadow_vertex.z-0.001 > shadow_depth){ //if nearby square is in shadow
-				light_diffuse_contribution -= light_diffuse_contribution/(window_size*window_size);
-				light_specular_contribution -= light_specular_contribution/(window_size*window_size); //make square a little darker
+			//if (shadow_vertex.z-0.001 > shadow_depth){ //if nearby square is in shadow
+				//light_diffuse_contribution -= light_diffuse_contribution/(window_size*window_size); // this is incorrect, now we will 1-(3/4)-(3/16)-(3/64)
+				//light_specular_contribution -= light_specular_contribution/(window_size*window_size); //make square a little darker
 				//shadow_sum++;
-			}
-		}
-	}
-
+			//}
+		//}
+	//}
+	//light_diffuse_contribution *= (1.0-shadow_sum);
+	//light_specular_contribution *= (1.0-shadow_sum);
 
 	//----- all of this is probably useless now -----
 
