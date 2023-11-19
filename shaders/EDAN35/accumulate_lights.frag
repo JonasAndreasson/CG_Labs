@@ -67,23 +67,28 @@ void main()
 	vec3 shadow_vertex= shadow_pos.xyz / shadow_pos.w;
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
-	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
+
+
+	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow -> check surrounding area
 	
-	int window_size = 6; // should be n
-	int loop_range = window_size/2;
-	float n_lit = window_size*window_size;
-	for (int i = -loop_range; i < loop_range; ++i){
-	for (int j = -loop_range; j < loop_range; ++j){
-		//--- Basic Shadow ---
-	vec2 temp = shadow_vertex.xy;
-	temp.x += (shadowmap_texel_size.x*(i+0.5));
-	temp.y += (shadowmap_texel_size.y*(j+0.5));
-	float shadow_depth = texture(shadow_texture, temp.xy).r;
-	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
-		n_lit -= 1.0;
-	}
-	}
-	}
+		int window_size = 6; // should be n
+		int loop_range = window_size/2;
+		float n_lit = window_size*window_size; //amount of squares, assume all in light
+		for (int i = -loop_range; i < loop_range; ++i){
+			for (int j = -loop_range; j < loop_range; ++j){
+
+				//--- Basic Shadow Check for nearby pixels---
+				vec2 temp = shadow_vertex.xy;
+				temp.x += (shadowmap_texel_size.x*(i+0.5));
+				temp.y += (shadowmap_texel_size.y*(j+0.5));
+				float shadow_depth = texture(shadow_texture, temp.xy).r;
+
+				if (shadow_vertex.z-0.001 > shadow_depth){ //If nearby spot it in the shadow
+					n_lit -= 1.0;
+				}
+			}
+		}
+
 	float shaded_ratio = n_lit/(window_size*window_size);
 	light_diffuse_contribution  *= shaded_ratio; //our calculated float
 	light_specular_contribution *= shaded_ratio;
