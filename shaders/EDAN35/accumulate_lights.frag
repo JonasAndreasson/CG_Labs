@@ -69,12 +69,37 @@ void main()
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
 	
-	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
-	light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
-	light_specular_contribution = vec4(0.0,0.0,0.0,1.0);}
+	//if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow
+	//light_diffuse_contribution  = vec4(0.0,0.0,0.0,1.0);
+	//light_specular_contribution = vec4(0.0,0.0,0.0,1.0);}
 	
 	//light_diffuse_contribution = vec4(shadow_vertex.xy/shadowmap_texel_size, 0.0,1.0);
 
+	/* LAB1------------
+	for (int j = 0; j < imageHeight; ++j) {
+        for (int i = 0; i < imageWidth; ++i) {
+
+            Color pixel;
+            // Get center of pixel coordinate
+            for (int x = 0; x < 3; ++x) {
+                for (int y = 0; y < 3; ++y) {
+
+                    
+                    float cx = ((float)i) + (1 + 2 * x) / 6.0f + 2 * (uniform() - 0.5)/6.0f;
+                    float cy = ((float)j) + (1 + 2 * y) / 6.0f + 2 * (uniform() - 0.5)/6.0f;
+
+                    // Get a ray and trace it
+                    Ray r = camera.getRay(cx, cy);
+                    pixel += traceRay(r, scene, depth);
+                }
+            }
+            pixel *= (1.0f/9.0f); 
+            // Write pixel value to image
+            writeColor((j * imageWidth + i) * numChannels, pixel, pixels);
+        }
+    }
+	---------------
+*/
 	
 	float shadow_sum;
 
@@ -83,16 +108,24 @@ void main()
 
 			float temp_depth = texture(shadow_texture, vec2(shadow_vertex.x  -1 + a, shadow_vertex.y -1 +b)).r; //Take a step along coordinates
 	
-			if (shadow_vertex.z-0.001 > temp_depth){ //If in shadow
+			if (shadow_vertex.z-0.001 > temp_depth){ //If in shadow - wrong shadow_vertex.z.....?
 				shadow_sum ++; //count how many of nearby squares are blocked/shaded
 			}
 		}
 	}
 
 	shadow_sum/(4); //normalize
+	//If all nearby squares are in shadow -> shadow_sum = 1
+	//If no nearby squares are in shadow -> shadow_sum = 0
 
-	light_diffuse_contribution  += (1-shadow_sum) * vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
-	light_specular_contribution += (1-shadow_sum) * vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
+	// Testing! - Correct results!!
+	//shadow_sum = 0; //no shadows
+	//shadow_sum = 1; //all shadows
+
+
+	//This is no different!!!
+	light_diffuse_contribution  = shadow_sum* vec4(0.0,0.0,0.0,1.0) + (1-shadow_sum) * vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
+	light_specular_contribution = shadow_sum* vec4(0.0,0.0,0.0,1.0) + (1-shadow_sum) * vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
 }
 
 
