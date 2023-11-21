@@ -42,23 +42,24 @@ void main()
 	vec2 texcoords;
 	texcoords.x = gl_FragCoord.x * inverse_screen_resolution.x;
 	texcoords.y = gl_FragCoord.y * inverse_screen_resolution.y;
-	vec3 normal = (2*vec3(texture(normal_texture, texcoords))-vec3(1.0));
+	vec3 normal = (2*vec3(texture(normal_texture, texcoords))-vec3(1.0)); //[0,1]->[-1,1]
+	normal = normalize(normal);
 	float depth = texture(depth_texture, texcoords).r; // Fetches the z value from depth buffer;
 	vec4 proj_pos = vec4(texcoords, depth, 1.0) * 2 - 1; // takes the x,y of our view, and adds the z from depth buffer. changes from [0,1] -> [-1, 1]
 	vec4 world_pos = vec4(camera.view_projection_inverse * proj_pos); //camera->world
 	vec3 vertex_pos = world_pos.xyz / world_pos.w;
-	vec3 L = normalize(-light_direction);
+	vec3 L = normalize(light_position-vertex_pos.xyz); //changed this
 	vec3 r = reflect(-L, normal);
 	vec3 v = normalize(camera_position - vertex_pos.xyz);
-	vec3 light_to_vertex = light_position - vertex_pos.xyz;
+	vec3 light_to_vertex = vertex_pos.xyz - light_position; //changed this
 	float distance= length(light_to_vertex); //get the distance from light to point
 	float distance_fall_off = 1/(distance*distance); //inverse-square law
-	float vertex_angle = acos(dot(L, light_to_vertex)/(length(L)*distance)); // [0, pi]
+	float vertex_angle = acos(dot(normalize(light_direction), normalize(light_to_vertex))); // [0, pi] //changed this to use normalized vectors instead.
 	float angle = clamp(vertex_angle, 0, light_angle_falloff); //sets angle to [0, light_angle_falloff]
 	float angular_fall_off = smoothstep(light_angle_falloff,0,angle); //[0,1] where 1 is bright, and 0 is none
 	float total_fall_off = light_intensity*distance_fall_off * angular_fall_off;
 	light_diffuse_contribution  = vec4(light_color * max(dot(normal,L), 0), 1.0) * total_fall_off;
-	light_specular_contribution = vec4(light_color * max(dot(r,v), 0),1.0) * total_fall_off ;
+	light_specular_contribution = vec4(light_color * pow(max(dot(r,v), 0),32),1.0) * total_fall_off ;
 	
 	//--- SHADOWS ---
 
@@ -68,17 +69,17 @@ void main()
 	shadow_vertex = shadow_vertex * 0.5f + 0.5f;
 	float shadow_depth = texture(shadow_texture, shadow_vertex.xy).r;
 
-
-	if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow -> check surrounding area
 	
-		int window_size = 6; // should be n
+	//if (shadow_vertex.z-0.001 > shadow_depth){ //If spot it in the shadow -> check surrounding area commented because maybe we don't always want to do this.
+	
+		int window_size = 4; // should be n
 		int loop_range = window_size/2;
 		float n_lit = window_size*window_size; //amount of squares, assume all in light
+		vec2 temp = shadow_vertex.xy; //moved to the outside to not run copy n^2 times on each pixel
 		for (int i = -loop_range; i < loop_range; ++i){
 			for (int j = -loop_range; j < loop_range; ++j){
 
 				//--- Basic Shadow Check for nearby pixels---
-				vec2 temp = shadow_vertex.xy;
 				temp.x += (shadowmap_texel_size.x*(i+0.5));
 				temp.y += (shadowmap_texel_size.y*(j+0.5));
 				float shadow_depth = texture(shadow_texture, temp.xy).r;
@@ -94,7 +95,8 @@ void main()
 	light_specular_contribution *= shaded_ratio;
 	light_diffuse_contribution.w = 1.0;
 	light_specular_contribution.w = 1.0;
-	}
+	//}
+	
 		//--- Basic Shadow ---
 
 	
